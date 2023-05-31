@@ -173,6 +173,13 @@ def execute_python_code(code):
         exec(code, globals())
     except Exception as e:
         print("Error executing code: ", e)
+        
+        if args.WRITE_ERROR_CODE:
+            import datetime
+            now = str(int(datetime.datetime.now().timestamp()))
+            with open(f"failed_execution_{now}.py", "w") as f:
+                f.write(code)
+
 
 
 def print_system(text):
@@ -271,7 +278,10 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Interact with files using an LLM interface.')
     
-    parser.add_argument('--unsafe', dest='RELIABILITY_GUARD_DISABLED', action='store_true')
+    parser.add_argument('--unsafe', dest='RELIABILITY_GUARD_DISABLED', action='store_true', help='Disable reliability guard, such as os.* functions. Use at your own risk.')
+    
+    # Specify file to save failed code to.
+    parser.add_argument('--save-failed', dest='SAVE_FAILED_TO', action='store', help='Filepath to save failed code to.')
    
     args = parser.parse_args()
 
