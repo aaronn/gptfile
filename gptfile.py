@@ -169,15 +169,15 @@ def get_packages_list():
 
 
 def execute_python_code(code):
+    if not args.RELIABILITY_GUARD_DISABLED:
+        reliability_guard()
     try:
         exec(code, globals())
     except Exception as e:
         print("Error executing code: ", e)
         
-        if args.WRITE_ERROR_CODE:
-            import datetime
-            now = str(int(datetime.datetime.now().timestamp()))
-            with open(f"failed_execution_{now}.py", "w") as f:
+        if args.SAVE_FAILED_TO:
+            with open(f"{args.SAVE_FAILED_TO}", "w") as f:
                 f.write(code)
 
 
@@ -197,7 +197,7 @@ def print_warn(text):
     print(f"\033[1m\033[93m{text}\033[0m\n")
 
 ## Reliability guard code from OpenAI Human Eval
-# https://github.com/openai/human-eval/blob/master/human_eval/execution.py#L48-L58
+# https://github.com/openai/human-eval/blob/master/human_eval/execution.py
 # Add this by default to limit destrucive behavior.
 # This feature can be disabled by invoking with --unsafe
 def reliability_guard(maximum_memory_bytes: int = None):
@@ -287,7 +287,5 @@ if __name__ == "__main__":
 
     if args.RELIABILITY_GUARD_DISABLED:
         print_warn("WARNING: Reliability guard disabled. Use at your own risk.")
-    else:
-        reliability_guard()
-
+        
     process_files(os.getcwd())
