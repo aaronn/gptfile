@@ -15,6 +15,7 @@ import os
 import json
 import openai
 import pkg_resources
+import argparse
 
 
 # Configure
@@ -168,10 +169,17 @@ def get_packages_list():
 
 
 def execute_python_code(code):
+    if not args.RELIABILITY_GUARD_DISABLED:
+        reliability_guard()
     try:
         exec(code, globals())
     except Exception as e:
         print("Error executing code: ", e)
+        
+        if args.SAVE_FAILED_TO:
+            with open(f"{args.SAVE_FAILED_TO}", "w") as f:
+                f.write(code)
+
 
 
 def print_system(text):
@@ -185,6 +193,99 @@ def print_user(text):
 def print_status(text):
     print(f"\033[1m\033[96m{text}\033[0m\n")
 
+def print_warn(text):
+    print(f"\033[1m\033[93m{text}\033[0m\n")
+
+## Reliability guard code from OpenAI Human Eval
+# https://github.com/openai/human-eval/blob/master/human_eval/execution.py
+# Add this by default to limit destrucive behavior.
+# This feature can be disabled by invoking with --unsafe
+def reliability_guard(maximum_memory_bytes: int = None):
+    import platform
+    """
+    This disables various destructive functions and prevents the generated code
+    from interfering with the test (e.g. fork bomb, killing other processes,
+    removing filesystem files, etc.)
+
+    WARNING
+    This function is NOT a security sandbox. Untrusted code, including, model-
+    generated code, should not be blindly executed outside of one. See the 
+    Codex paper for more information about OpenAI's code sandbox, and proceed
+    with caution.
+    """
+
+    if maximum_memory_bytes is not None:
+        import resource
+        resource.setrlimit(resource.RLIMIT_AS, (maximum_memory_bytes, maximum_memory_bytes))
+        resource.setrlimit(resource.RLIMIT_DATA, (maximum_memory_bytes, maximum_memory_bytes))
+        if not platform.uname().system == 'Darwin':
+            resource.setrlimit(resource.RLIMIT_STACK, (maximum_memory_bytes, maximum_memory_bytes))
+
+
+    import builtins
+    builtins.exit = None
+    builtins.quit = None
+
+    import os
+    os.environ['OMP_NUM_THREADS'] = '1'
+
+    os.kill = None
+    os.system = None
+    os.putenv = None
+    os.remove = None
+    os.removedirs = None
+    os.rmdir = None
+    os.fchdir = None
+    os.setuid = None
+    os.fork = None
+    os.forkpty = None
+    os.killpg = None
+    os.rename = None
+    os.renames = None
+    os.truncate = None
+    os.replace = None
+    os.unlink = None
+    os.fchmod = None
+    os.fchown = None
+    os.chmod = None
+    os.chown = None
+    os.chroot = None
+    os.fchdir = None
+    os.lchflags = None
+    os.lchmod = None
+    os.lchown = None
+
+    # Removing these restrictions for basic functionality
+    #os.getcwd = None
+    #os.chdir = None
+
+    import shutil
+    shutil.rmtree = None
+    shutil.move = None
+    shutil.chown = None
+
+    import subprocess
+    subprocess.Popen = None  # type: ignore
+
+    import sys
+    sys.modules['ipdb'] = None
+    sys.modules['joblib'] = None
+    sys.modules['resource'] = None
+    sys.modules['psutil'] = None
+    sys.modules['tkinter'] = None
 
 if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description='Interact with files using an LLM interface.')
+    
+    parser.add_argument('--unsafe', dest='RELIABILITY_GUARD_DISABLED', action='store_true', help='Disable reliability guard, such as os.* functions. Use at your own risk.')
+    
+    # Specify file to save failed code to.
+    parser.add_argument('--save-failed', dest='SAVE_FAILED_TO', action='store', help='Filepath to save failed code to.')
+   
+    args = parser.parse_args()
+
+    if args.RELIABILITY_GUARD_DISABLED:
+        print_warn("WARNING: Reliability guard disabled. Use at your own risk.")
+        
     process_files(os.getcwd())
